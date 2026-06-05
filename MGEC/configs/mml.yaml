@@ -1,0 +1,138 @@
+network:
+  ecg_model: mmlformer_vit_tiny  # 可选: vit_tiny, vit_small, vit_base, mmlformer_vit_tiny, mmlformer_vit_small, mmlformer_vit_base
+  num_leads: 12
+  patch_size: 125  # 仅用于原始 ViT，MMLFormer 使用 patch_sizes
+  num_classes: 295
+  seq_len: 5000  # ECG 序列长度
+  text_model: '<path_to_text_encoder>'
+  # text_model: ncbi/MedCPT-Query-Encoder
+  # text_model: emilyalsentzer/Bio_ClinicalBERT
+  # text_model: microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext
+  freeze_layers: 12 # set 12 to freeze all layer in bert
+  feature_dim: 768
+  dropout: 0.1  #初始值0.1
+  
+  # CoOp 相关配置
+  use_coop: false  # 是否启用 CoOp（Context Optimization）
+  coop_context_length: 16  # 上下文向量长度 M（可学习的上下文 token 数量）
+  freeze_class_embedding: true  # 是否冻结类别名称的 Word Embedding（防止过拟合）
+  
+  use_multilayer_selection: true  # 是否启用多层特征选择策略（Similarity-based Selection）
+  fusion_method: add  # 融合方式：'concat' (拼接) 或 'add' (相加)。仅在 use_multilayer_selection=true 时生效
+  
+  # MMLFormer 相关配置
+  use_mmlformer: true  # 是否使用 MMLFormer 编码器（如果 ecg_model 包含 'mmlformer' 则自动启用）
+  patch_sizes: [32, 64, 128]  # 多粒度 patch sizes
+  mmlformer_pool: none  # MMLFormer 输出方式: 'none' (所有patches), 'router' (Router Tokens), 'mean' (平均), 'concat' (拼接)
+  enable_augmentation: true  # 是否启用 Patch-wise 数据增强
+  mask_prob: 0.15  # Patch masking 概率
+  jitter_std: 0.01  # Jittering 标准差
+  # 多层级特征融合配置（基于 Lin et al. 的方法）
+  use_multilayer_fusion: true  # 是否启用多层级特征融合（Beginning/Middle/Ending layers）
+  mmlformer_fusion_method: add  # MMLFormer 多层级融合方式：'concat' (拼接) 或 'add' (相加)
+
+  projection_head:
+    mlp_hidden_size: 256
+    projection_size: 256
+
+training:
+  server: '<name>'
+  dataset: "mimic"
+  data_scale: 1.0
+  train_csv: '<path_to_train_csv>'
+  val_csv: '<path_to_val_csv>'
+  train_npy: '<path_to_train_npy>'
+  val_npy: '<path_to_val_npy>'
+  workers: 2
+  epochs: 100
+  batch_size: 256
+  save_dir: '<path_to_save_dir>'
+  checkpoint_interval: 10
+  zeroshot: true
+  resume_training: False
+  resume_from_best: False
+  resume_epoch: None
+  early_stopping: True
+  early_stopping_patience: 10
+
+zeroshot:
+  prompt_dict: '<path_to_eval_prompt_json>'
+  batch_size: 256
+  num_workers: 2
+  meta_data_path: '<path_to_zeroshot_metadata_dir>'
+  meta_split_path: '<path_to_zeroshot_data_split_dir>'
+  val_sets:
+    ptbxl_super_class:
+      data_path: 'ptbxl'
+      split_path: 'ptbxl/super_class/ptbxl_super_class_val.csv'
+    ptbxl_sub_class:
+      data_path: 'ptbxl'
+      split_path: 'ptbxl/sub_class/ptbxl_sub_class_val.csv'
+    ptbxl_form:
+      data_path: 'ptbxl'
+      split_path: 'ptbxl/form/ptbxl_form_val.csv'
+    ptbxl_rhythm:
+      data_path: 'ptbxl'
+      split_path: 'ptbxl/rhythm/ptbxl_rhythm_val.csv'
+    icbeb:
+      data_path: 'icbeb2018/records500'
+      split_path: 'icbeb/icbeb_val.csv'
+    chapman:
+      data_path: ''
+      split_path: 'chapman/chapman_val.csv'
+
+criterion:
+  criterion_name: "bce_with_logits_loss"
+
+
+
+
+# --- 新增 DALR 配置部分 ---
+dalr:
+  use_consistency_loss: true  # 开关：是否启用一致性损失
+  enable: true 
+  margin: 0.0                 # DALR 中的 margin 参数 (Eq. 5)
+  weight: 0.3                 # 损失函数的权重 lambda (总损失 = 任务损失 + weight * 一致性损失)  0.1
+
+# --- 新增：Contrastive Loss 配置 ---
+contrastive:
+  enable: false        # 开关
+  weight: 0.1         # 权重 (建议 0.1 ~ 1.0 之间尝试)
+  temperature: 0.07   # 初始温度系数
+
+# optimizer:
+#   optimizer_name: "adamw"
+#   optimizer_learning_rate: 0.001
+#   optimizer_weight_decay: 1.0e-08    #0.00000001
+
+optimizer:
+  optimizer_name: "adamw"
+  optimizer_learning_rate: 0.0001      
+  ecg_learning_rate: 0.00001            
+  text_learning_rate: 0.000001         
+  optimizer_weight_decay: 0.0001   
+
+scheduler:
+  scheduler_name: "cosine_annealing_warm_restarts"
+  scheduler_T_0: 5000
+  scheduler_T_mult: 1
+  scheduler_eta_min: 1.0e-08
+
+scaler:
+  scaler_name: "grad_scaler"
+
+seed:
+  torch_seed: 4399                  # 4399   #9527     #456132
+  numpy_seed: 0
+  python_seed: 0
+
+logger:
+  log_name: "SPT4ECG"
+  log_to_console: true
+  log_to_wandb: true
+  log_to_csv: true
+
+wandb:
+  wandb_project: ""
+  wandb_entity: ""
+  wandb_api_key: ""
